@@ -285,20 +285,56 @@ export default function Home() {
         // Try loading with proper CORS settings to avoid security issues
         try {
           console.log('🔍 Attempting to load FFmpeg with optimized settings...');
+          
+          // Check if we're running on Netlify production
+          const isNetlify = typeof window !== 'undefined' && 
+                           (window.location.hostname.includes('netlify.app') || 
+                            window.location.hostname === 'audiovsl.com');
+          
+          console.log('Is running on production?', isNetlify);
+          
+          // If we're on Netlify, try CDN first since local loading has issues there
+          if (isNetlify) {
+            console.log('🔍 Production environment detected, trying CDN loading first...');
+            try {
+              // Add a timeout to CDN loading
+              const cdnLoadPromise = ffmpegInstance.load({
+                coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/esm/ffmpeg-core.js',
+                wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm'
+              });
+              
+              // Create a timeout promise
+              const cdnTimeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('CDN FFmpeg loading timed out after 15 seconds')), 15000);
+              });
+              
+              // Race the load and the timeout
+              await Promise.race([cdnLoadPromise, cdnTimeoutPromise]);
+              
+              console.log('✅ FFmpeg loaded successfully via CDN in production!');
+              setFFmpeg(ffmpegInstance);
+              setLoaded(true);
+              setFfmpegLoadingStatus('success');
+              return; // Exit early if CDN loading worked
+            } catch (cdnError) {
+              console.error('❌ Production CDN loading failed, falling back to local files:', cdnError);
+            }
+          }
+          
           console.log('Using paths:', {
             coreURL: '/ffmpeg/ffmpeg-core.js',
             wasmURL: '/ffmpeg/ffmpeg-core.wasm',
           });
           
-          // Add a timeout to prevent hanging indefinitely
+          // Add a timeout to prevent hanging indefinitely - reduce to 10 seconds
           const loadPromise = ffmpegInstance.load({
             coreURL: '/ffmpeg/ffmpeg-core.js',
             wasmURL: '/ffmpeg/ffmpeg-core.wasm',
           });
           
-          // Create a timeout promise
+          // Create a timeout promise - reduce to 10 seconds for faster fallback
           const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('FFmpeg loading timed out after 20 seconds')), 20000);
+            setTimeout(() => reject(new Error('FFmpeg loading timed out after 10 seconds')), 10000);
           });
           
           // Race the load and the timeout
@@ -338,7 +374,7 @@ export default function Home() {
             
             // Create a timeout promise
             const defaultTimeoutPromise = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('Default FFmpeg loading timed out after 20 seconds')), 20000);
+              setTimeout(() => reject(new Error('Default FFmpeg loading timed out after 10 seconds')), 10000);
             });
             
             // Race the load and the timeout
@@ -358,13 +394,13 @@ export default function Home() {
               
               // Add a timeout to CDN loading as well
               const cdnLoadPromise = ffmpegInstance.load({
-                coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/esm/ffmpeg-core.js',
-                wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm'
+                coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/esm/ffmpeg-core.js',
+                wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm'
               });
               
               // Create a timeout promise
               const cdnTimeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('CDN FFmpeg loading timed out after 30 seconds')), 30000);
+                setTimeout(() => reject(new Error('CDN FFmpeg loading timed out after 15 seconds')), 15000);
               });
               
               // Race the load and the timeout
@@ -412,9 +448,9 @@ export default function Home() {
   useEffect(() => {
     if (ffmpegLoadingStatus === 'loading') {
       const timeoutId = setTimeout(() => {
-        console.error('❌ FFmpeg loading got stuck and timed out after 60 seconds');
+        console.error('❌ FFmpeg loading got stuck and timed out after 30 seconds');
         setFfmpegLoadingStatus('error');
-      }, 60000); // 60 seconds maximum loading time
+      }, 30000); // 30 seconds maximum loading time
       
       return () => clearTimeout(timeoutId);
     }
