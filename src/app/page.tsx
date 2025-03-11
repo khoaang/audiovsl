@@ -290,10 +290,19 @@ export default function Home() {
             wasmURL: '/ffmpeg/ffmpeg-core.wasm',
           });
           
-          await ffmpegInstance.load({
+          // Add a timeout to prevent hanging indefinitely
+          const loadPromise = ffmpegInstance.load({
             coreURL: '/ffmpeg/ffmpeg-core.js',
             wasmURL: '/ffmpeg/ffmpeg-core.wasm',
           });
+          
+          // Create a timeout promise
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('FFmpeg loading timed out after 20 seconds')), 20000);
+          });
+          
+          // Race the load and the timeout
+          await Promise.race([loadPromise, timeoutPromise]);
           
           console.log('✅ FFmpeg loaded successfully!');
           setFFmpeg(ffmpegInstance);
@@ -323,7 +332,17 @@ export default function Home() {
           // Fallback to auto-loading
           try {
             console.log('🔄 Trying default loading method...');
-            await ffmpegInstance.load();
+            
+            // Add a timeout to default loading as well
+            const defaultLoadPromise = ffmpegInstance.load();
+            
+            // Create a timeout promise
+            const defaultTimeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Default FFmpeg loading timed out after 20 seconds')), 20000);
+            });
+            
+            // Race the load and the timeout
+            await Promise.race([defaultLoadPromise, defaultTimeoutPromise]);
             
             console.log('✅ FFmpeg loaded successfully via default method!');
             setFFmpeg(ffmpegInstance);
@@ -336,10 +355,20 @@ export default function Home() {
             // Add third fallback to CDN loading
             try {
               console.log('🔄 Trying CDN loading method as last resort...');
-              await ffmpegInstance.load({
+              
+              // Add a timeout to CDN loading as well
+              const cdnLoadPromise = ffmpegInstance.load({
                 coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/esm/ffmpeg-core.js',
                 wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm'
               });
+              
+              // Create a timeout promise
+              const cdnTimeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('CDN FFmpeg loading timed out after 30 seconds')), 30000);
+              });
+              
+              // Race the load and the timeout
+              await Promise.race([cdnLoadPromise, cdnTimeoutPromise]);
               
               console.log('✅ FFmpeg loaded successfully via CDN!');
               setFFmpeg(ffmpegInstance);
@@ -378,6 +407,18 @@ export default function Home() {
   useEffect(() => {
     loadFFmpeg();
   }, []);
+
+  // Add a safety timeout to clear loading state if it gets stuck
+  useEffect(() => {
+    if (ffmpegLoadingStatus === 'loading') {
+      const timeoutId = setTimeout(() => {
+        console.error('❌ FFmpeg loading got stuck and timed out after 60 seconds');
+        setFfmpegLoadingStatus('error');
+      }, 60000); // 60 seconds maximum loading time
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [ffmpegLoadingStatus]);
 
   const getMediaType = (file: File): 'image' | 'gif' | 'video' => {
     if (file.type.startsWith('video/')) {
@@ -1306,9 +1347,20 @@ Keyboard Shortcuts:
     return (
       <div className="fixed top-0 left-0 right-0 bg-black/80 text-white p-2 z-50 text-center">
         {ffmpegLoadingStatus === 'loading' ? (
-          <div className="flex items-center justify-center space-x-2">
-            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-            <span>Loading video processing engine...</span>
+          <div className="flex flex-col items-center justify-center">
+            <div className="flex items-center justify-center space-x-2">
+              <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+              <span>Loading video processing engine...</span>
+            </div>
+            <div className="text-xs mt-1 text-gray-300">
+              This may take up to 30 seconds. If it takes longer, try refreshing the page.
+            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              className="mt-2 px-2 py-1 bg-gray-600 rounded text-xs hover:bg-gray-500 transition-colors"
+            >
+              Force Refresh
+            </button>
           </div>
         ) : (
           <div className="text-red-400 flex items-center justify-center space-x-2">
@@ -1323,6 +1375,12 @@ Keyboard Shortcuts:
               className="ml-2 px-2 py-1 bg-red-600 rounded text-xs hover:bg-red-700"
             >
               Retry
+            </button>
+            <button 
+              onClick={() => window.location.reload()}
+              className="ml-2 px-2 py-1 bg-gray-600 rounded text-xs hover:bg-gray-500"
+            >
+              Refresh Page
             </button>
           </div>
         )}
