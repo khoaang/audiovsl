@@ -1,1 +1,12 @@
- 
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
+    
+[[headers]]
+  for = "/ffmpeg/*"
+  [headers.values]
+    Cross-Origin-Resource-Policy = "cross-origin"
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=31536000, immutable" 

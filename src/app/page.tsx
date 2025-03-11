@@ -300,7 +300,8 @@ export default function Home() {
               // Add a timeout to CDN loading
               const cdnLoadPromise = ffmpegInstance.load({
                 coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/esm/ffmpeg-core.js',
-                wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm'
+                wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm',
+                workerURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.worker.js'
               });
               
               // Create a timeout promise
@@ -395,7 +396,8 @@ export default function Home() {
               // Add a timeout to CDN loading as well
               const cdnLoadPromise = ffmpegInstance.load({
                 coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/esm/ffmpeg-core.js',
-                wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm'
+                wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm',
+                workerURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.worker.js'
               });
               
               // Create a timeout promise
