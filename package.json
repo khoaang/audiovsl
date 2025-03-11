@@ -1,0 +1,35 @@
+{
+    "name": "audiovsl",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint"
+    },
+    "dependencies": {
+        "@ffmpeg/core": "^0.12.4",
+        "@ffmpeg/ffmpeg": "^0.12.7",
+        "@ffmpeg/util": "^0.12.1",
+        "@radix-ui/react-progress": "^1.0.3",
+        "audio-sync": "^1.0.1",
+        "clsx": "^2.1.0",
+        "meyda": "^5.6.3",
+        "next": "^15.2.1",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "react-draggable": "^4.4.6",
+        "react-dropzone": "^14.2.3",
+        "tailwind-merge": "^2.2.1"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.19",
+        "@types/react": "^18.2.57",
+        "@types/react-dom": "^18.2.19",
+        "autoprefixer": "^10.4.20",
+        "postcss": "^8.5.3",
+        "tailwindcss": "^3.4.17",
+        "typescript": "^5.3.3"
+    }
+}
