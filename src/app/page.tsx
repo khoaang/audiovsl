@@ -240,13 +240,11 @@ export default function Home() {
       try {
         const coreResponse = await fetch('/ffmpeg/ffmpeg-core.js', { method: 'HEAD' });
         const wasmResponse = await fetch('/ffmpeg/ffmpeg-core.wasm', { method: 'HEAD' });
-        const workerResponse = await fetch('/ffmpeg/ffmpeg-worker.js', { method: 'HEAD' });
         
         console.log('FFmpeg core.js status:', coreResponse.status, coreResponse.ok);
         console.log('FFmpeg core.wasm status:', wasmResponse.status, wasmResponse.ok);
-        console.log('FFmpeg worker.js status:', workerResponse.status, workerResponse.ok);
         
-        if (!coreResponse.ok || !wasmResponse.ok || !workerResponse.ok) {
+        if (!coreResponse.ok || !wasmResponse.ok) {
           console.error('⚠️ Some FFmpeg files are not accessible!');
         } else {
           console.log('✅ All FFmpeg files are accessible');
