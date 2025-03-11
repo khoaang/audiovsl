@@ -128,15 +128,91 @@ export default function Home() {
       return { isCompatible: true, issues: [] }; // Skip on server-side
     }
     
+    console.log('🔍 Browser details:', {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      vendor: navigator.vendor
+    });
+    
     // Check for SharedArrayBuffer support (required for FFmpeg)
     if (typeof SharedArrayBuffer === 'undefined') {
       issues.push('SharedArrayBuffer is not supported in this browser');
+      console.warn('⚠️ SharedArrayBuffer is not available in this browser');
+    } else {
+      console.log('✅ SharedArrayBuffer is supported');
     }
     
     // Check for cross-origin isolation (required for SharedArrayBuffer)
-    if (typeof window.crossOriginIsolated === 'boolean' && !window.crossOriginIsolated) {
-      issues.push('Cross-origin isolation is not enabled');
+    if (typeof window.crossOriginIsolated === 'boolean') {
+      console.log('🔍 Cross-Origin Isolation status:', window.crossOriginIsolated);
+      if (!window.crossOriginIsolated) {
+        issues.push('Cross-origin isolation is not enabled');
+        console.warn('⚠️ Cross-origin isolation is not enabled (required for SharedArrayBuffer)');
+      } else {
+        console.log('✅ Cross-origin isolation is enabled');
+      }
+    } else {
+      console.warn('⚠️ Cannot determine cross-origin isolation status');
+      issues.push('Cannot determine cross-origin isolation status');
     }
+    
+    // Check for WebAssembly support
+    if (typeof WebAssembly === 'object') {
+      console.log('✅ WebAssembly is supported');
+      
+      // Check for specific WebAssembly features
+      const wasmFeatures = {
+        bulkMemory: false,
+        exceptions: false,
+        simd: false,
+        threads: false
+      };
+      
+      try {
+        if (WebAssembly.validate) {
+          // Check SIMD support
+          wasmFeatures.simd = WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,7,8,1,4,116,101,115,116,0,0,10,10,1,8,0,65,0,253,15,253,98,11]));
+          
+          // Check Threads support
+          wasmFeatures.threads = WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,5,3,1,0,1,10,11,1,9,0,65,0,254,16,2,0,26,11]));
+          
+          console.log('🔍 WebAssembly features detected:', wasmFeatures);
+          
+          if (!wasmFeatures.threads) {
+            issues.push('WebAssembly threads not supported (required for optimal FFmpeg performance)');
+            console.warn('⚠️ WebAssembly threads not supported');
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Error checking WebAssembly features:', e);
+      }
+    } else {
+      issues.push('WebAssembly is not supported in this browser');
+      console.warn('⚠️ WebAssembly is not supported in this browser');
+    }
+    
+    // Check for Web Workers support
+    if (typeof Worker === 'undefined') {
+      issues.push('Web Workers are not supported in this browser');
+      console.warn('⚠️ Web Workers are not supported');
+    } else {
+      console.log('✅ Web Workers are supported');
+    }
+    
+    // Check CORS headers by making a test request
+    console.log('🔍 Testing CORS headers for FFmpeg files...');
+    fetch('/ffmpeg/ffmpeg-core.js', { method: 'HEAD' })
+      .then(response => {
+        const corsHeaders = {
+          'cross-origin-embedder-policy': response.headers.get('cross-origin-embedder-policy'),
+          'cross-origin-opener-policy': response.headers.get('cross-origin-opener-policy'),
+          'cross-origin-resource-policy': response.headers.get('cross-origin-resource-policy')
+        };
+        console.log('🔍 CORS headers for FFmpeg files:', corsHeaders);
+      })
+      .catch(err => {
+        console.warn('⚠️ Could not test CORS headers:', err);
+      });
     
     return {
       isCompatible: issues.length === 0,
@@ -147,63 +223,153 @@ export default function Home() {
   // Load FFmpeg
   const loadFFmpeg = async () => {
     try {
+      console.log('🔍 Starting FFmpeg load process...');
       setFfmpegLoadingStatus('loading');
       
       // Check browser compatibility first
+      console.log('🔍 Checking browser compatibility...');
       const { isCompatible, issues } = checkBrowserCompatibility();
       if (!isCompatible) {
-        console.warn('Browser compatibility issues:', issues);
+        console.warn('⚠️ Browser compatibility issues detected:', issues);
+      } else {
+        console.log('✅ Browser compatibility check passed');
+      }
+      
+      // Check if FFmpeg files exist
+      console.log('🔍 Verifying FFmpeg files availability...');
+      try {
+        const coreResponse = await fetch('/ffmpeg/ffmpeg-core.js', { method: 'HEAD' });
+        const wasmResponse = await fetch('/ffmpeg/ffmpeg-core.wasm', { method: 'HEAD' });
+        const workerResponse = await fetch('/ffmpeg/ffmpeg-worker.js', { method: 'HEAD' });
+        
+        console.log('FFmpeg core.js status:', coreResponse.status, coreResponse.ok);
+        console.log('FFmpeg core.wasm status:', wasmResponse.status, wasmResponse.ok);
+        console.log('FFmpeg worker.js status:', workerResponse.status, workerResponse.ok);
+        
+        if (!coreResponse.ok || !wasmResponse.ok || !workerResponse.ok) {
+          console.error('⚠️ Some FFmpeg files are not accessible!');
+        } else {
+          console.log('✅ All FFmpeg files are accessible');
+        }
+      } catch (fetchError) {
+        console.error('❌ Error checking FFmpeg files:', fetchError);
       }
       
       // Dynamically import FFmpeg modules
-      const { FFmpeg } = await import('@ffmpeg/ffmpeg');
-      const { fetchFile } = await import('@ffmpeg/util');
-      
-      // Store fetchFile for later use
-      window.fetchFileUtil = fetchFile;
-      
-      // Create and configure FFmpeg instance
-      const ffmpegInstance = new FFmpeg();
-      
-      // Set up logging
-      ffmpegInstance.on('log', ({ message }) => {
-        console.log('FFmpeg log:', message);
-      });
-      
-      console.log('Loading FFmpeg...');
-      
-      // Try loading with proper CORS settings to avoid security issues
+      console.log('🔍 Importing FFmpeg modules...');
       try {
-        console.log('Attempting to load FFmpeg with optimized settings...');
-        await ffmpegInstance.load({
-          coreURL: '/ffmpeg/ffmpeg-core.js',
-          wasmURL: '/ffmpeg/ffmpeg-core.wasm',
-          workerURL: '/ffmpeg/ffmpeg-worker.js' // Add worker for better performance
+        const { FFmpeg } = await import('@ffmpeg/ffmpeg');
+        console.log('✅ FFmpeg module imported successfully');
+        const { fetchFile } = await import('@ffmpeg/util');
+        console.log('✅ fetchFile utility imported successfully');
+        
+        // Store fetchFile for later use
+        window.fetchFileUtil = fetchFile;
+        console.log('✅ fetchFile stored in window object');
+        
+        // Create and configure FFmpeg instance
+        console.log('🔍 Creating FFmpeg instance...');
+        const ffmpegInstance = new FFmpeg();
+        console.log('✅ FFmpeg instance created');
+        
+        // Set up logging
+        ffmpegInstance.on('log', ({ message }) => {
+          console.log('📝 FFmpeg internal log:', message);
         });
         
-        console.log('FFmpeg loaded successfully!');
-        setFFmpeg(ffmpegInstance);
-        setLoaded(true);
-        setFfmpegLoadingStatus('success');
-      } catch (localLoadError) {
-        console.error('Error loading from local files:', localLoadError);
+        // Set up progress logging
+        ffmpegInstance.on('progress', (progress) => {
+          console.log(`📊 FFmpeg loading progress: ${progress.progress * 100}%`);
+        });
         
-        // Fallback to auto-loading
+        console.log('🔄 Loading FFmpeg...');
+        
+        // Try loading with proper CORS settings to avoid security issues
         try {
-          console.log('Trying default loading method...');
-          await ffmpegInstance.load();
+          console.log('🔍 Attempting to load FFmpeg with optimized settings...');
+          console.log('Using paths:', {
+            coreURL: '/ffmpeg/ffmpeg-core.js',
+            wasmURL: '/ffmpeg/ffmpeg-core.wasm',
+          });
           
-          console.log('FFmpeg loaded successfully via default method!');
+          await ffmpegInstance.load({
+            coreURL: '/ffmpeg/ffmpeg-core.js',
+            wasmURL: '/ffmpeg/ffmpeg-core.wasm',
+          });
+          
+          console.log('✅ FFmpeg loaded successfully!');
           setFFmpeg(ffmpegInstance);
           setLoaded(true);
           setFfmpegLoadingStatus('success');
-        } catch (defaultLoadError) {
-          console.error('Default loading also failed:', defaultLoadError);
-          throw defaultLoadError;
+          
+          // Add test to see if FFmpeg is actually working
+          try {
+            console.log('🔍 Testing FFmpeg functionality...');
+            const files = await ffmpegInstance.listDir('/');
+            console.log('FFmpeg file system contents:', files);
+            
+            // Test a simple FFmpeg command
+            try {
+              await ffmpegInstance.exec(['-version']);
+              console.log('✅ FFmpeg version check successful!');
+            } catch (cmdError) {
+              console.error('❌ FFmpeg command test failed:', cmdError);
+            }
+          } catch (testError) {
+            console.error('❌ Error testing FFmpeg functionality:', testError);
+          }
+        } catch (localLoadError) {
+          console.error('❌ Error loading from local files:', localLoadError);
+          console.error('Error details:', JSON.stringify(localLoadError, Object.getOwnPropertyNames(localLoadError)));
+          
+          // Fallback to auto-loading
+          try {
+            console.log('🔄 Trying default loading method...');
+            await ffmpegInstance.load();
+            
+            console.log('✅ FFmpeg loaded successfully via default method!');
+            setFFmpeg(ffmpegInstance);
+            setLoaded(true);
+            setFfmpegLoadingStatus('success');
+          } catch (defaultLoadError) {
+            console.error('❌ Default loading also failed:', defaultLoadError);
+            console.error('Default load error details:', JSON.stringify(defaultLoadError, Object.getOwnPropertyNames(defaultLoadError)));
+            
+            // Add third fallback to CDN loading
+            try {
+              console.log('🔄 Trying CDN loading method as last resort...');
+              await ffmpegInstance.load({
+                coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/esm/ffmpeg-core.js',
+                wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd/ffmpeg-core.wasm'
+              });
+              
+              console.log('✅ FFmpeg loaded successfully via CDN!');
+              setFFmpeg(ffmpegInstance);
+              setLoaded(true);
+              setFfmpegLoadingStatus('success');
+              
+              // Test if FFmpeg is working
+              try {
+                const files = await ffmpegInstance.listDir('/');
+                console.log('FFmpeg file system contents (CDN load):', files);
+              } catch (testError) {
+                console.error('❌ Error testing FFmpeg functionality after CDN load:', testError);
+              }
+            } catch (cdnLoadError) {
+              console.error('❌ CDN loading also failed:', cdnLoadError);
+              console.error('CDN load error details:', JSON.stringify(cdnLoadError, Object.getOwnPropertyNames(cdnLoadError)));
+              throw cdnLoadError;
+            }
+          }
         }
+      } catch (importError) {
+        console.error('❌ Error importing FFmpeg modules:', importError);
+        console.error('Import error details:', JSON.stringify(importError, Object.getOwnPropertyNames(importError)));
+        throw importError;
       }
     } catch (error) {
-      console.error('Failed to load FFmpeg:', error);
+      console.error('❌ Failed to load FFmpeg:', error);
+      console.error('Final error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
       setFfmpegLoadingStatus('error');
       // Don't rethrow to prevent app crash
       alert('Failed to load video processing engine. Please try refreshing the page or use a different browser.');
